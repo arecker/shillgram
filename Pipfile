@@ -1,0 +1,20 @@
+[[source]]
+name = "pypi"
+url = "https://pypi.org/simple"
+verify_ssl = true
+
+[dev-packages]
+rope = "*"
+flake8 = "*"
+importmagic = "*"
+autopep8 = "*"
+yapf = "*"
+ipdb = "*"
+ipython = "*"
+virtualenv = "*"
+virtualenvwrapper = "*"
+
+[packages]
+
+[requires]
+python_version = "3.7"
