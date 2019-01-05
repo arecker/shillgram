@@ -17,6 +17,7 @@ virtualenvwrapper = "*"
 [packages]
 instagramapi = "*"
 click = "*"
+requests = "*"
 
 [requires]
 python_version = "3.7"
