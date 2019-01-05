@@ -54,7 +54,12 @@ def make_client(user='alex_recker'):
 
 
 def tags_from_text(text):
-    return [w[1:] for w in text.split(' ') if w.startswith('@')]
+    return filter(None, [
+        word[1:]
+        for word
+        in text.split(' ')
+        if word.startswith('@')
+    ])
 
 
 def contest(url, max_entries=10):
