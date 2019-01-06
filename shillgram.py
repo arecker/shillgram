@@ -54,12 +54,12 @@ def make_client(user='alex_recker'):
 
 
 def tags_from_text(text):
-    return filter(None, [
+    return list(filter(None, [
         word[1:]
         for word
         in text.split(' ')
         if word.startswith('@')
-    ])
+    ]))
 
 
 def contest(url, max_entries=10):
@@ -81,4 +81,9 @@ def contest(url, max_entries=10):
             if friend != user and friend not in participants[user]:
                 participants[user].append(friend)
 
-    return participants
+    weighted = []
+
+    for user, friends in participants.items():
+        weighted += [user for i in range(len(friends))]
+
+    return random.choice(weighted)
