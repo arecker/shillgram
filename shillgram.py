@@ -1,7 +1,10 @@
 import collections
+import contextlib
+import os
 import random
-import subprocess
+import sys
 
+import click
 import InstagramAPI
 import requests
 
@@ -43,13 +46,32 @@ class Post(object):
 
         self.comments = CommentIterator(client=client, media_id=self.media_id)
 
+    @property
+    def author(self):
+        try:
+            return self._author
+        except AttributeError:
+            self.client.getMediaComments(self.media_id)
+            self._author = self.client.LastJson['caption']['user']['username']
+            return self._author
 
-def make_client(user='alex_recker'):
-    password = subprocess.run(
-        ['pass', 'instagram'], stdout=subprocess.PIPE
-    ).stdout.decode()
-    client = InstagramAPI.InstagramAPI(user, password)
-    client.login()
+
+@contextlib.contextmanager
+def hidden_output():
+    _stderr, _stdout = sys.stderr, sys.stdout
+    with open(os.devnull, 'w') as nothing:
+        try:
+            sys.stdout = sys.stderr = nothing
+            yield
+        finally:
+            sys.stderr = _stderr
+            sys.stdout = _stdout
+
+
+def make_client(username, password):
+    client = InstagramAPI.InstagramAPI(username, password)
+    with hidden_output():
+        client.login()
     return client
 
 
@@ -62,28 +84,64 @@ def tags_from_text(text):
     ]))
 
 
-def contest(url, max_entries=10):
+@click.group()
+def cli():
 
-    """contest
+    """shillgram - helping instagram shills shill even harder"""
 
-    pick a random winner from comments, where each tagged friend is
-    one chance to win
-    """
+
+@cli.command()
+@click.option('--url', prompt=True)
+@click.option('--username', prompt=True)
+@click.option('--password', prompt=True, hide_input=True)
+@click.option('--max-entries', default=10)
+def contest(url, username, password, max_entries):
+
+    """pick a random winner from comments"""
 
     participants = collections.defaultdict(list)
 
-    for comment in Post(client=make_client(), url=url).comments:
-        user = comment['user']['username']
-        friends = tags_from_text(comment['text'])
+    click.echo('authenticating with instagram')
+    client = make_client(username, password)
 
-        while friends and len(participants[user]) < max_entries:
-            friend = friends.pop(0)
-            if friend != user and friend not in participants[user]:
-                participants[user].append(friend)
+    click.echo('fetching post')
+    post = Post(client=client, url=url)
 
+    click.echo('analyzing comments')
+    with click.progressbar(post.comments) as comments:
+        for comment in comments:
+            user = comment['user']['username']
+            friends = tags_from_text(comment['text'])
+
+            while friends and len(participants[user]) < max_entries:
+                friend = friends.pop(0)
+
+                is_author = friend == post.author
+                is_tagged = friend in participants[user]
+                is_user = friend == user
+
+                if not any([is_author, is_tagged, is_user]):
+                    participants[user].append(friend)
+
+    click.echo('building weighted list')
     weighted = []
-
     for user, friends in participants.items():
         weighted += [user for i in range(len(friends))]
 
-    return random.choice(weighted)
+    if not weighted:
+        click.echo('oops - nobody tagged nobody for nothing!')
+        exit(1)
+
+    click.echo('selecting a winner')
+    winner = random.choice(weighted)
+
+    click.echo('The winner is @{}'.format(winner))
+    click.echo('Tagged friends: {}'.format(', '.join([
+        '@{}'.format(friend)
+        for friend
+        in participants[winner]
+    ])))
+
+
+if __name__ == '__main__':
+    cli()
