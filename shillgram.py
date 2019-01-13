@@ -3,12 +3,13 @@
 """Create a sweepstakes drawing, using instagram comments as entries."""
 
 import argparse
+import hashlib
+import html.parser
 import json
 import logging
 import sys
 import urllib.parse
 import urllib.request
-import html.parser
 
 
 def make_logger():
@@ -29,7 +30,7 @@ class TokenParser(html.parser.HTMLParser):
 
     def handle_data(self, data):
         is_script_tag = '<script' in (self.get_starttag_text() or [])
-        has_token = 'csrf_token' in data
+        has_token = 'rhx_gis' in data
         if is_script_tag and has_token:
             while True:
                 starts, ends = data.startswith('{'), data.endswith('}')
@@ -38,7 +39,7 @@ class TokenParser(html.parser.HTMLParser):
                 if not ends:
                     data = data[:-1]
                 if starts and ends:
-                    self.token = json.loads(data)['config']['csrf_token']
+                    self.token = json.loads(data)['rhx_gis']
                     return
 
 
@@ -97,12 +98,22 @@ def yada_yada(text, max_chars=30, ending='...'):
     return '{}{}'.format(shortened_text, ending)
 
 
-def fetch_comments(url):
-    logger.debug('fetching csrf token')
+def fetch_token(url):
+    logger.debug('fetching token')
     _, html = make_request(url)
     parser = TokenParser()
     parser.feed(html)
     logger.debug('token: %s', parser.token)
+    return parser.token
+
+
+def fetch_comments(media_url):
+    token = fetch_token(media_url)
+    headers = {
+        'X-Instagram-GIS': hashlib.md5(values.encode()).hexdigest()
+    }
+    code, response = make_request(target, headers=headers)
+    return response
 
 
 def main():
