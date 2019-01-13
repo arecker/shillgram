@@ -8,6 +8,7 @@ import logging
 import sys
 import urllib.parse
 import urllib.request
+import html.parser
 
 
 def make_logger():
@@ -23,6 +24,24 @@ def make_logger():
 logger = make_logger()
 
 
+class TokenParser(html.parser.HTMLParser):
+    token = None
+
+    def handle_data(self, data):
+        is_script_tag = '<script' in (self.get_starttag_text() or [])
+        has_token = 'csrf_token' in data
+        if is_script_tag and has_token:
+            while True:
+                starts, ends = data.startswith('{'), data.endswith('}')
+                if not starts:
+                    data = data[1:]
+                if not ends:
+                    data = data[:-1]
+                if starts and ends:
+                    self.token = json.loads(data)['config']['csrf_token']
+                    return
+
+
 class FourOhFour(Exception):
     pass
 
@@ -35,18 +54,23 @@ def get_args():
     return parser.parse_args()
 
 
-def make_request(url, params={}):
+def make_request(url, params={}, headers={}):
     if params:
         url += '?{}'.format(urllib.parse.urlencode(params))
 
-    request = urllib.request.Request(url)
+    request = urllib.request.Request(url, headers=headers)
 
     try:
         with urllib.request.urlopen(request) as response:
-            return response.status, json.loads(response.read())
+            body = response.read()
+            try:
+                return response.status, json.loads(body)
+            except ValueError:
+                return response.status, body.decode()
     except urllib.error.HTTPError as e:
         if e.code == 404:
             raise FourOhFour
+        raise e
 
 
 def fetch_post(url):
@@ -73,6 +97,14 @@ def yada_yada(text, max_chars=30, ending='...'):
     return '{}{}'.format(shortened_text, ending)
 
 
+def fetch_comments(url):
+    logger.debug('fetching csrf token')
+    _, html = make_request(url)
+    parser = TokenParser()
+    parser.feed(html)
+    logger.debug('token: %s', parser.token)
+
+
 def main():
     args = get_args()
 
@@ -90,7 +122,10 @@ def main():
         logger.error('cannot find post for url %s', args.url)
         sys.exit(1)
 
-    logger.info('found post "%s" by @%s', yada_yada(post['title']), post['author_name'])
+    author, title = post['author_name'], yada_yada(post['title'])
+    logger.info('found post "%s" by @%s', title, author)
+
+    logger.info('fetching comments from "%s"', title)
 
 
 if __name__ == '__main__':
