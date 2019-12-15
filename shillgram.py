@@ -95,7 +95,7 @@ def cli():
 @click.option('--username', prompt=True)
 @click.option('--password', prompt=True, hide_input=True)
 @click.option('--max-entries', default=10)
-@click.option('--no-tagging', default=False)
+@click.option('--no-tagging', is_flag=True, default=False)
 def contest(url, username, password, max_entries, no_tagging):
 
     """pick a random winner from comments"""
