@@ -95,7 +95,8 @@ def cli():
 @click.option('--username', prompt=True)
 @click.option('--password', prompt=True, hide_input=True)
 @click.option('--max-entries', default=10)
-def contest(url, username, password, max_entries):
+@click.option('--no-tagging', default=False)
+def contest(url, username, password, max_entries, no_tagging):
 
     """pick a random winner from comments"""
 
@@ -111,8 +112,14 @@ def contest(url, username, password, max_entries):
     with click.progressbar(post.comments) as comments:
         for comment in comments:
             user = comment['user']['username']
-            friends = tags_from_text(comment['text'])
 
+            if no_tagging:
+                # just add a single dummy friend since each comment
+                # just counts as one entry
+                participants[user] = [user]
+                continue
+
+            friends = tags_from_text(comment['text'])
             while friends and len(participants[user]) < max_entries:
                 friend = friends.pop(0)
 
@@ -136,11 +143,13 @@ def contest(url, username, password, max_entries):
     winner = random.choice(weighted)
 
     click.echo('The winner is @{}'.format(winner))
-    click.echo('Tagged friends: {}'.format(', '.join([
-        '@{}'.format(friend)
-        for friend
-        in participants[winner]
-    ])))
+
+    if not no_tagging:
+        click.echo('Tagged friends: {}'.format(', '.join([
+            '@{}'.format(friend)
+            for friend
+            in participants[winner]
+        ])))
 
 
 if __name__ == '__main__':
